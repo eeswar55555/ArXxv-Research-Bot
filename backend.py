@@ -2,7 +2,8 @@ import streamlit as st
 from pinecone import Pinecone
 import re
 from sentence_transformers import SentenceTransformer
-import google.generativeai as genai
+import google.genai as genai 
+from google.genai import Client # <-- New explicit import for clarity
 import os 
 from dotenv import load_dotenv 
 import pandas as pd 
@@ -57,13 +58,16 @@ def get_pinecone_index():
     return index
 
 @st.cache_resource
-def get_gemini_model():
-    """Initializes and caches the Gemini model."""
-    print("Initializing Gemini model...")
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-2.5-flash-preview-05-20')
-    print("Gemini model ready.")
-    return model
+def get_gemini_model_client(): # <-- Renamed function for clarity
+    """Initializes and caches the Gemini Client connection."""
+    print("Initializing Gemini Client...")
+    
+    # **FIX:** Replace genai.configure() with client instantiation
+    # The client will handle the connection logic
+    client = Client(api_key=GEMINI_API_KEY) 
+
+    print("Gemini Client ready.")
+    return client
 
 @st.cache_resource
 def get_title_lookup():
@@ -90,6 +94,7 @@ def get_title_lookup():
 def perform_search(query):
     """
     Takes a user query, embeds it, and performs a search in Pinecone.
+    (This function is currently unused in your main RAG pipeline but kept for integrity.)
     """
     model = get_embedding_model()
     index = get_pinecone_index()
@@ -144,11 +149,16 @@ def generate_answer(query, search_results):
     if not search_results:
         return "No relevant papers were found to answer your question."
         
-    llm = get_gemini_model()
+    # Get the Gemini Client object
+    llm_client = get_gemini_model_client()
     prompt = create_augmented_prompt(query, search_results)
     
     try:
-        response = llm.generate_content(prompt)
+        # **FIX:** Call generate_content on the client object and pass the model name
+        response = llm_client.models.generate_content(
+            model='gemini-2.5-flash', # Use a stable model name
+            contents=prompt
+        )
         return response.text
     except Exception as e:
         print(f"Error during Gemini API call: {e}")
@@ -196,5 +206,3 @@ def search_and_generate(query):
         "pinecone_results": formatted_results,
         "generated_answer": generated_answer
     }
-
-
